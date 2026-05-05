@@ -5,6 +5,7 @@
  */
 import { useState } from 'react'
 import { CodeBlock } from '@/components/CodeBlock'
+import { LiveRepl } from '@/components/LiveRepl'
 import { sections, challenges, type Challenge } from '@/lib/content'
 
 // ─── Header ──────────────────────────────────────────────────────────────────
@@ -20,10 +21,10 @@ function Header() {
             <span className="font-sans text-sm text-muted-foreground">Type-Level TypeScript Playground</span>
           </div>
           <nav className="hidden md:flex items-center gap-6">
-            {['Option', 'Either', 'Do', 'HKT', 'Branded', 'Challenges'].map((item) => (
+            {['Option', 'Either', 'Do', 'HKT', 'TaskEither', 'Branded', 'Challenges', 'REPL'].map((item) => (
               <a
                 key={item}
-                href={`#${item.toLowerCase()}`}
+                href={`#${item === 'TaskEither' ? 'task-either' : item.toLowerCase()}`}
                 className="text-xs font-mono text-muted-foreground hover:text-primary transition-colors tracking-wide"
               >
                 {item}
@@ -229,6 +230,32 @@ function ChallengesSection() {
   )
 }
 
+// ─── REPL Section ───────────────────────────────────────────────────────────────
+
+function ReplSection() {
+  return (
+    <section id="repl" className="py-16 border-b border-border">
+      <div className="container">
+        <div className="grid grid-cols-1 md:grid-cols-[5rem_1fr] gap-8">
+          <div className="pt-1 hidden md:block">
+            <span className="chapter-label block">07</span>
+          </div>
+          <div>
+            <div className="rule-accent pt-4 mb-2">
+              <h2 className="text-3xl font-bold text-foreground">Live REPL</h2>
+            </div>
+            <p className="text-sm font-mono text-primary mb-5">Edit and run TypeScript in the browser</p>
+            <p className="text-base text-muted-foreground leading-relaxed mb-8 max-w-2xl font-light">
+              An in-browser TypeScript playground powered by Monaco. fp-ts combinators (pipe, flow, Option, Either, Array) are pre-stubbed so you can experiment with functional patterns without any build step. Edit the code and press <span className="type-badge">Run</span> to execute.
+            </p>
+            <LiveRepl />
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 // ─── Footer ───────────────────────────────────────────────────────────────────
 
 function Footer() {
@@ -268,6 +295,7 @@ export default function Home() {
           <ContentSection key={section.id} section={section} />
         ))}
         <ChallengesSection />
+        <ReplSection />
       </main>
       <Footer />
     </div>

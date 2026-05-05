@@ -229,8 +229,87 @@ const doubleOption = lift(O.Functor)(double)
     ],
   },
   {
-    id: 'branded',
+    id: 'task-either',
     chapter: '05',
+    title: 'TaskEither',
+    subtitle: 'Async error handling as a first-class value',
+    prose:
+      'TaskEither<E, A> is the workhorse of real-world fp-ts code. It represents an asynchronous computation that may fail with E or succeed with A — a lazy Promise<Either<E, A>>. tryCatch wraps a Promise-returning function and maps thrown errors into the Left channel. sequenceArray runs an array of TaskEithers in parallel and collects all results. fromOption and fromEither lift synchronous values into the async pipeline without breaking the chain.',
+    examples: [
+      {
+        title: 'tryCatch — wrapping a Promise',
+        code: `import { pipe } from 'fp-ts/function'
+import * as TE from 'fp-ts/TaskEither'
+
+type HttpError = { status: number; message: string }
+
+const fetchUser = (id: string): TE.TaskEither<HttpError, { name: string }> =>
+  TE.tryCatch(
+    () => fetch(\`/api/users/\${id}\`).then((r) => r.json()),
+    (err): HttpError => ({
+      status: err instanceof Response ? err.status : 500,
+      message: String(err),
+    })
+  )
+
+const program = pipe(
+  fetchUser('u-42'),
+  TE.map((user) => user.name.toUpperCase()),
+  TE.mapLeft((err) => \`HTTP \${err.status}: \${err.message}\`),
+  TE.match(
+    (errMsg) => console.error(errMsg),
+    (name)   => console.log('Hello,', name)
+  )
+)
+
+// program is still lazy — call program() to execute`,
+      },
+      {
+        title: 'sequenceArray — parallel execution',
+        code: `import { pipe } from 'fp-ts/function'
+import * as TE from 'fp-ts/TaskEither'
+import * as A from 'fp-ts/Array'
+
+declare const fetchUser: (id: string) => TE.TaskEither<string, { name: string }>
+
+const ids = ['u-1', 'u-2', 'u-3']
+
+// Runs all three fetches in parallel; fails fast on first Left
+const allUsers = pipe(
+  ids,
+  A.map(fetchUser),
+  TE.sequenceArray
+)
+// type: TE.TaskEither<string, readonly { name: string }[]>`,
+      },
+      {
+        title: 'fromOption & fromEither — lifting into TaskEither',
+        code: `import { pipe } from 'fp-ts/function'
+import * as TE from 'fp-ts/TaskEither'
+import * as O from 'fp-ts/Option'
+import * as E from 'fp-ts/Either'
+
+const parseId = (s: string): O.Option<number> =>
+  isNaN(Number(s)) ? O.none : O.some(Number(s))
+
+const validatePositive = (n: number): E.Either<string, number> =>
+  n > 0 ? E.right(n) : E.left('Must be positive')
+
+declare const fetchUser: (id: number) => TE.TaskEither<string, { name: string }>
+
+const program = (raw: string) =>
+  pipe(
+    parseId(raw),
+    TE.fromOption(() => 'Not a number'),   // Option → TaskEither
+    TE.chainEitherK(validatePositive),      // Either → TaskEither (chainEitherK)
+    TE.chain(fetchUser)
+  )`,
+      },
+    ],
+  },
+  {
+    id: 'branded',
+    chapter: '06',
     title: 'Branded & Phantom Types',
     subtitle: 'Nominal typing and compile-time state machines',
     prose:
@@ -339,5 +418,175 @@ type Add<A extends number, B extends number> =
   [...BuildTuple<A>, ...BuildTuple<B>]['length']
 
 // Add<3, 4> → 7`,
+  },
+  {
+    id: 'trim',
+    title: 'Trim',
+    difficulty: 'medium',
+    description: 'Remove leading and trailing whitespace from a string type.',
+    technique: 'Template Literal + Recursive Infer',
+    stub: `type Trim<S extends string> = // your solution`,
+    solution: `type TrimLeft<S extends string> =
+  S extends \`\${' ' | '\\n' | '\\t'}\${infer R}\` ? TrimLeft<R> : S
+
+type TrimRight<S extends string> =
+  S extends \`\${infer L}\${' ' | '\\n' | '\\t'}\` ? TrimRight<L> : S
+
+type Trim<S extends string> = TrimLeft<TrimRight<S>>
+
+// Trim<'  hello  '> → 'hello'`,
+  },
+  {
+    id: 'flatten',
+    title: 'Flatten',
+    difficulty: 'medium',
+    description: 'Flatten a nested array type one level deep.',
+    technique: 'Variadic Tuple Types + Conditional Infer',
+    stub: `type Flatten<T extends any[]> = // your solution`,
+    solution: `type Flatten<T extends any[]> =
+  T extends [infer Head, ...infer Tail]
+    ? Head extends any[]
+      ? [...Head, ...Flatten<Tail>]
+      : [Head, ...Flatten<Tail>]
+    : []
+
+// Flatten<[1, [2, 3], [4, [5]]]> → [1, 2, 3, 4, [5]]`,
+  },
+  {
+    id: 'string-to-union',
+    title: 'StringToUnion',
+    difficulty: 'medium',
+    description: 'Convert a string literal type into a union of its individual characters.',
+    technique: 'Template Literal + Recursive Infer',
+    stub: `type StringToUnion<S extends string> = // your solution`,
+    solution: `type StringToUnion<S extends string> =
+  S extends \`\${infer C}\${infer Rest}\`
+    ? C | StringToUnion<Rest>
+    : never
+
+// StringToUnion<'abc'> → 'a' | 'b' | 'c'`,
+  },
+  {
+    id: 'permutation',
+    title: 'Permutation',
+    difficulty: 'medium',
+    description: 'Generate all permutations of a union type as a tuple.',
+    technique: 'Distributive Conditional Types + Recursive Accumulation',
+    stub: `type Permutation<T, K = T> = // your solution`,
+    solution: `type Permutation<T, K = T> =
+  [T] extends [never]
+    ? []
+    : K extends K
+      ? [K, ...Permutation<Exclude<T, K>>]
+      : never
+
+// Permutation<'A' | 'B' | 'C'> →
+// ['A','B','C'] | ['A','C','B'] | ['B','A','C'] | ...`,
+  },
+  {
+    id: 'chainable-options',
+    title: 'Chainable Options',
+    difficulty: 'medium',
+    description: 'Type a chainable builder where option() accumulates key-value pairs and get() returns the accumulated object.',
+    technique: 'Recursive Generic Accumulation',
+    stub: `type Chainable<T = {}> = {
+  option<K extends string, V>(key: K, value: V): // ???
+  get(): T
+}`,
+    solution: `type Chainable<T = {}> = {
+  option<K extends string, V>(
+    key: K extends keyof T ? never : K,
+    value: V
+  ): Chainable<Omit<T, K> & Record<K, V>>
+  get(): T
+}
+
+// Each call to option() widens the accumulated type T`,
+  },
+  {
+    id: 'required-keys',
+    title: 'RequiredKeys',
+    difficulty: 'hard',
+    description: 'Extract only the required (non-optional) keys of an object type.',
+    technique: 'Mapped Types + Conditional Key Filtering',
+    stub: `type RequiredKeys<T> = // your solution`,
+    solution: `type RequiredKeys<T> = {
+  [K in keyof T]-?: {} extends Pick<T, K> ? never : K
+}[keyof T]
+
+// RequiredKeys<{ a: 1; b?: 2; c: 3 }> → 'a' | 'c'`,
+  },
+  {
+    id: 'get-return-type',
+    title: 'MyReturnType',
+    difficulty: 'medium',
+    description: 'Implement the built-in ReturnType<T> utility without using it.',
+    technique: 'Conditional Types + infer in Function Position',
+    stub: `type MyReturnType<T> = // your solution`,
+    solution: `type MyReturnType<T extends (...args: any[]) => any> =
+  T extends (...args: any[]) => infer R ? R : never
+
+// MyReturnType<() => string> → string
+// MyReturnType<(n: number) => boolean> → boolean`,
+  },
+  {
+    id: 'currying',
+    title: 'Currying (Hard)',
+    difficulty: 'hard',
+    description: 'Type a curry() function that converts a multi-argument function into a chain of single-argument functions.',
+    technique: 'Variadic Tuple Types + Recursive Function Types',
+    stub: `declare function curry<T>(fn: T): Curried<T>`,
+    solution: `type Curried<T> =
+  T extends (...args: infer Args) => infer R
+    ? Args extends [infer First, ...infer Rest]
+      ? (arg: First) => Curried<(...args: Rest) => R>
+      : R
+    : T
+
+declare function curry<T extends (...args: any[]) => any>(fn: T): Curried<T>
+
+// curry((a: number, b: string) => boolean)
+// → (a: number) => (b: string) => boolean`,
+  },
+  {
+    id: 'simple-vue',
+    title: 'Simple Vue (Hard)',
+    difficulty: 'hard',
+    description: 'Type a Vue-like options object so that `this` inside methods resolves to the correct type from data and computed.',
+    technique: 'ThisType + Intersection Types',
+    stub: `declare function SimpleVue<D, C, M>(options: Options<D, C, M>): any`,
+    solution: `type Options<D, C, M> = {
+  data(this: {}): D
+  computed: C & ThisType<D>
+  methods: M & ThisType<D & {
+    [K in keyof C]: C[K] extends () => infer R ? R : never
+  } & M>
+}
+
+declare function SimpleVue<D, C, M>(options: Options<D, C, M>): any
+
+// Inside methods, 'this.count' resolves to number
+// 'this.doubled' resolves to number (from computed)
+// 'this.increment()' resolves correctly`,
+  },
+  {
+    id: 'readonly-keys',
+    title: 'ReadonlyKeys (Extreme)',
+    difficulty: 'extreme',
+    description: 'Extract only the readonly keys of an object type.',
+    technique: 'Mapped Types + Equality Check via Conditional Types',
+    stub: `type ReadonlyKeys<T> = // your solution`,
+    solution: `type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends
+  (<T>() => T extends B ? 1 : 2) ? true : false
+
+type ReadonlyKeys<T> = {
+  [K in keyof T]-?: Equal<
+    { [Q in K]: T[Q] },
+    { readonly [Q in K]: T[Q] }
+  > extends true ? K : never
+}[keyof T]
+
+// ReadonlyKeys<{ readonly a: 1; b: 2 }> → 'a'`,
   },
 ]
